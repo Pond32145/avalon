@@ -44,7 +44,8 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
       phase: gameState?.phase,
       currentLeader: gameState?.currentLeader,
       playerId,
-      targetId
+      targetId,
+      selectedPlayers: gameState?.selectedPlayers
     });
     
     if (gameState?.phase === 'TEAM_SELECTION' && gameState.currentLeader === playerId) {
@@ -147,7 +148,7 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
                 isCurrentPlayer={player.id === playerId}
                 isVisible={visibleRoles[player.id]}
                 isSelectable={gameState.phase === 'TEAM_SELECTION' && isMyTurn}
-                isSelected={gameState.selectedPlayers?.includes(player.id)}
+                isSelected={gameState.selectedPlayers.includes(player.id)}
                 onSelect={() => handleSelectPlayer(player.id)}
                 onAssassinate={() => handleAssassinate(player.id)}
                 showAssassinate={
@@ -161,14 +162,14 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
           {/* Team Selection */}
           {gameState?.phase === 'TEAM_SELECTION' && (
             <div className="mt-4">
-              <h3 className="text-lg font-semibold mb-2">Select Team Members ({gameState.selectedPlayers?.length || 0}/{getMissionSize(gameState.players.length, gameState.currentMission)})</h3>
+              <h3 className="text-lg font-semibold mb-2">Select Team Members ({gameState.selectedPlayers.length}/{getMissionSize(gameState.players.length, gameState.currentMission)})</h3>
               <div className="flex flex-wrap gap-2">
                 {gameState.players.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => handleSelectPlayer(p.id)}
                     className={`px-4 py-2 rounded ${
-                      gameState.selectedPlayers?.includes(p.id)
+                      gameState.selectedPlayers.includes(p.id)
                         ? 'bg-blue-500 text-white'
                         : 'bg-gray-200 hover:bg-gray-300'
                     } ${gameState.currentLeader === playerId ? '' : 'cursor-not-allowed opacity-50'}`}
@@ -178,7 +179,7 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
                   </button>
                 ))}
               </div>
-              {gameState.currentLeader === playerId && gameState.selectedPlayers?.length === getMissionSize(gameState.players.length, gameState.currentMission) && (
+              {gameState.currentLeader === playerId && gameState.selectedPlayers.length === getMissionSize(gameState.players.length, gameState.currentMission) && (
                 <button
                   onClick={handleSubmitTeam}
                   className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"

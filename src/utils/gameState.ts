@@ -168,7 +168,7 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
         round: 1,
         currentMission: 1,
         failedVotes: 0,
-        selectedPlayers: [], // เพิ่มนี่
+        selectedPlayers: [],
         lastUpdate: now
       };
     }
@@ -198,7 +198,7 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
       const missionSize = getMissionSize(state.players.length, state.currentMission);
 
       // ถ้าเลือกซ้ำให้ลบออก
-      if (state.selectedPlayers?.includes(targetId)) {
+      if (state.selectedPlayers.includes(targetId)) {
         console.log('Removing player from selection');
         return {
           ...state,
@@ -208,7 +208,7 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
       }
 
       // ถ้าเลือกครบแล้วไม่ให้เลือกเพิ่ม
-      if (state.selectedPlayers?.length >= missionSize) {
+      if (state.selectedPlayers.length >= missionSize) {
         console.log('Team is full');
         return state;
       }
@@ -220,7 +220,7 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
       });
       return {
         ...state,
-        selectedPlayers: [...(state.selectedPlayers || []), targetId],
+        selectedPlayers: [...state.selectedPlayers, targetId],
         lastUpdate: now
       };
     }
