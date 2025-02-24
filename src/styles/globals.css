@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 17, 24, 39;
+  --background-end-rgb: 76, 29, 149;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--background-start-rgb)),
+    rgb(var(--background-end-rgb))
+  );
+  min-height: 100vh;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-blue-500 to-purple-600 
+           hover:from-blue-600 hover:to-purple-700 
+           text-white font-bold py-2 px-4 rounded-lg 
+           transition-all duration-200 transform hover:scale-105 
+           focus:outline-none focus:ring-2 focus:ring-purple-500 
+           focus:ring-opacity-50;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-700 hover:bg-gray-600 
+           text-white font-bold py-2 px-4 rounded-lg 
+           transition-all duration-200 
+           focus:outline-none focus:ring-2 focus:ring-gray-500 
+           focus:ring-opacity-50;
+  }
+
+  .card {
+    @apply bg-gray-800 bg-opacity-50 p-6 rounded-xl shadow-lg 
+           backdrop-blur-sm transition-all duration-200 
+           hover:bg-opacity-70;
+  }
+
+  .input {
+    @apply w-full px-4 py-2 bg-gray-700 border border-gray-600 
+           rounded-lg text-white placeholder-gray-400 
+           focus:outline-none focus:ring-2 focus:ring-purple-500;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.7);
+}
+
+/* Animations */
+.animate-fade-in {
+  animation: fadeIn 1s ease-in;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
