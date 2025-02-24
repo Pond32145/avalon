@@ -28,7 +28,7 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-6xl font-bold text-white mb-8 animate-fade-in">
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-              AVALON
+              AVALUAAAAA
             </span>
           </h1>
           <p className="text-xl text-gray-300 mb-12">

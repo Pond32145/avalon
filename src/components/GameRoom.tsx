@@ -38,11 +38,22 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
     dispatch({ type: 'START_GAME', payload: {} });
   };
 
+  // เพิ่ม debug log
   const handleSelectPlayer = (targetId: string) => {
+    console.log('handleSelectPlayer', {
+      phase: gameState?.phase,
+      currentLeader: gameState?.currentLeader,
+      playerId,
+      targetId
+    });
+    
     if (gameState?.phase === 'TEAM_SELECTION' && gameState.currentLeader === playerId) {
       dispatch({
         type: 'SELECT_PLAYER',
-        payload: { playerId: targetId }
+        payload: { 
+          playerId,  // ส่ง playerId ของคนที่กดปุ่ม (leader)
+          targetId   // ส่ง targetId ของคนที่ถูกเลือก
+        }
       });
     }
   };
@@ -136,7 +147,7 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
                 isCurrentPlayer={player.id === playerId}
                 isVisible={visibleRoles[player.id]}
                 isSelectable={gameState.phase === 'TEAM_SELECTION' && isMyTurn}
-                isSelected={gameState.selectedPlayers.includes(player.id)}
+                isSelected={gameState.selectedPlayers?.includes(player.id)}
                 onSelect={() => handleSelectPlayer(player.id)}
                 onAssassinate={() => handleAssassinate(player.id)}
                 showAssassinate={
@@ -147,17 +158,34 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
             ))}
           </div>
 
-          {/* Team Selection Controls */}
-          {gameState?.phase === 'TEAM_SELECTION' && isMyTurn && (
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-xl mb-4">เลือกผู้เล่นเข้าทีม ({gameState.selectedPlayers.length}/{getMissionSize(gameState.players.length, gameState.currentMission)})</h3>
-              <button
-                onClick={handleSubmitTeam}
-                disabled={gameState.selectedPlayers.length !== getMissionSize(gameState.players.length, gameState.currentMission)}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-2 rounded-lg transition-colors"
-              >
-                ยืนยันทีม
-              </button>
+          {/* Team Selection */}
+          {gameState?.phase === 'TEAM_SELECTION' && (
+            <div className="mt-4">
+              <h3 className="text-lg font-semibold mb-2">Select Team Members ({gameState.selectedPlayers?.length || 0}/{getMissionSize(gameState.players.length, gameState.currentMission)})</h3>
+              <div className="flex flex-wrap gap-2">
+                {gameState.players.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSelectPlayer(p.id)}
+                    className={`px-4 py-2 rounded ${
+                      gameState.selectedPlayers?.includes(p.id)
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-200 hover:bg-gray-300'
+                    } ${gameState.currentLeader === playerId ? '' : 'cursor-not-allowed opacity-50'}`}
+                    disabled={gameState.currentLeader !== playerId}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              {gameState.currentLeader === playerId && gameState.selectedPlayers?.length === getMissionSize(gameState.players.length, gameState.currentMission) && (
+                <button
+                  onClick={handleSubmitTeam}
+                  className="mt-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                >
+                  Submit Team
+                </button>
+              )}
             </div>
           )}
 
@@ -186,8 +214,8 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
           {gameState?.phase === 'MISSION_EXECUTION' && gameState.selectedPlayers.includes(playerId) && (
             <div className="mt-4">
               <h3 className="text-lg font-semibold mb-2">Execute Mission</h3>
-              {/* เปลี่ยนเงื่อนไขการแสดงปุ่ม */}
-              {gameState.votes[playerId] === undefined ? (
+              {/* เปลี่ยนเงื่อนไขการแสดงปุ่มกลับเป็นแบบเดิม */}
+              {!gameState.votes[playerId] ? (
                 <div className="flex space-x-4">
                   <button
                     onClick={() => handleExecuteMission(true)}
@@ -207,8 +235,7 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
               ) : (
                 <div className="text-gray-600">
                   You have completed your mission. Waiting for others... ({gameState.selectedPlayers.filter(id => 
-                    gameState.votes[id] !== undefined && 
-                    gameState.selectedPlayers.includes(id)
+                    gameState.votes[id] !== undefined
                   ).length}/{gameState.selectedPlayers.length})
                 </div>
               )}
@@ -219,8 +246,7 @@ export default function GameRoom({ roomId, playerId, playerName }: GameRoomProps
           {gameState?.phase === 'MISSION_EXECUTION' && !gameState.selectedPlayers.includes(playerId) && (
             <div className="mt-4 text-gray-600">
               Waiting for mission team to complete their mission... ({gameState.selectedPlayers.filter(id => 
-                gameState.votes[id] !== undefined && 
-                gameState.selectedPlayers.includes(id)
+                gameState.votes[id] !== undefined
               ).length}/{gameState.selectedPlayers.length})
             </div>
           )}

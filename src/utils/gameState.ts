@@ -15,8 +15,23 @@ const INITIAL_STATE: GameState = {
   lastUpdate: Date.now()
 };
 
+export const initialGameState: GameState = {
+  roomId: '',
+  players: [],
+  currentLeader: null,
+  phase: 'WAITING_FOR_PLAYERS',
+  round: 1,
+  failedVotes: 0,
+  currentMission: 1,
+  selectedPlayers: [],
+  votes: {},
+  missionResults: [],
+  winner: null,
+  lastUpdate: Date.now()
+};
+
 // จำนวนผู้เล่นที่ต้องการสำหรับแต่ละรอบ ขึ้นอยู่กับจำนวนผู้เล่นทั้งหมด
-const MISSION_SIZES: Record<number, number[]> = {
+const MISSION_SIZES = {
   5: [2, 3, 2, 3, 3],
   6: [2, 3, 4, 3, 4],
   7: [2, 3, 3, 4, 4],
@@ -66,6 +81,29 @@ function generateRoles(playerCount: number): [Role, Team][] {
   
   // สับเปลี่ยนตำแหน่ง
   return roles.sort(() => Math.random() - 0.5);
+}
+
+export interface SelectPlayerAction {
+  type: 'SELECT_PLAYER';
+  payload: {
+    playerId: string;
+    targetId: string;
+  };
+}
+
+export interface GameState {
+  roomId: string;
+  players: Player[];
+  currentLeader: string | null;
+  phase: GamePhase;
+  round: number;
+  failedVotes: number;
+  currentMission: number;
+  selectedPlayers: string[];
+  votes: Record<string, boolean>;
+  missionResults: boolean[];
+  winner: Team | null;
+  lastUpdate: number;
 }
 
 export function gameStateReducer(state: GameState, action: GameAction): GameState {
@@ -130,19 +168,38 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
         round: 1,
         currentMission: 1,
         failedVotes: 0,
+        selectedPlayers: [], // เพิ่มนี่
         lastUpdate: now
       };
     }
 
     case 'SELECT_PLAYER': {
-      if (state.phase !== 'TEAM_SELECTION') return state;
-      if (state.currentLeader !== action.payload.playerId) return state;
+      console.log('SELECT_PLAYER reducer', {
+        phase: state.phase,
+        currentLeader: state.currentLeader,
+        actionPlayerId: action.payload.playerId,
+        targetId: action.payload.targetId,
+        selectedPlayers: state.selectedPlayers,
+        missionSize: getMissionSize(state.players.length, state.currentMission)
+      });
 
-      const { playerId: targetId } = action.payload;
+      if (state.phase !== 'TEAM_SELECTION') {
+        console.log('Not in TEAM_SELECTION phase');
+        return state;
+      }
+
+      // ตรวจสอบว่า action.payload.playerId เป็น leader หรือไม่
+      if (state.currentLeader !== action.payload.playerId) {
+        console.log('Not the current leader');
+        return state;
+      }
+
+      const { targetId } = action.payload;
       const missionSize = getMissionSize(state.players.length, state.currentMission);
 
       // ถ้าเลือกซ้ำให้ลบออก
-      if (state.selectedPlayers.includes(targetId)) {
+      if (state.selectedPlayers?.includes(targetId)) {
+        console.log('Removing player from selection');
         return {
           ...state,
           selectedPlayers: state.selectedPlayers.filter(id => id !== targetId),
@@ -151,12 +208,19 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
       }
 
       // ถ้าเลือกครบแล้วไม่ให้เลือกเพิ่ม
-      if (state.selectedPlayers.length >= missionSize) return state;
+      if (state.selectedPlayers?.length >= missionSize) {
+        console.log('Team is full');
+        return state;
+      }
 
       // เพิ่มผู้เล่นที่ถูกเลือก
+      console.log('Adding player to selection', {
+        currentPlayers: state.selectedPlayers,
+        newPlayer: targetId
+      });
       return {
         ...state,
-        selectedPlayers: [...state.selectedPlayers, targetId],
+        selectedPlayers: [...(state.selectedPlayers || []), targetId],
         lastUpdate: now
       };
     }
@@ -168,8 +232,7 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
       return {
         ...state,
         phase: 'TEAM_VOTING',
-        teamVotes: {},  
-        votes: {},      
+        votes: {},
         lastUpdate: now
       };
     }
@@ -178,128 +241,125 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
       if (state.phase !== 'TEAM_VOTING') return state;
 
       const { playerId, vote } = action.payload;
-      const newTeamVotes = { ...state.teamVotes, [playerId]: vote };
-
-      // ถ้ายังโหวตไม่ครบ รอต่อ
-      if (Object.keys(newTeamVotes).length < state.players.length) {
-        return {
-          ...state,
-          teamVotes: newTeamVotes,
-          lastUpdate: now
-        };
-      }
-
-      // ถ้าโหวตครบแล้ว นับผล
-      const approveCount = Object.values(newTeamVotes).filter(v => v).length;
-      const rejectCount = state.players.length - approveCount;
-
-      if (approveCount > rejectCount) {
-        // ทีมผ่าน เริ่มทำภารกิจ
-        return {
-          ...state,
-          phase: 'MISSION_EXECUTION',
-          teamVotes: newTeamVotes,
-          votes: {},  
-          lastUpdate: now
-        };
-      }
-
-      // ถ้าโหวตไม่ผ่าน
-      const newFailedVotes = state.failedVotes + 1;
-      if (newFailedVotes >= 5) {
-        // ถ้าโหวตไม่ผ่าน 5 ครั้งติด ฝ่ายอธรรมชนะ
-        return {
-          ...state,
-          phase: 'GAME_OVER',
-          winner: 'evil',
-          teamVotes: newTeamVotes,
-          lastUpdate: now
-        };
-      }
-
-      // เปลี่ยนผู้นำและเริ่มเลือกทีมใหม่
-      const currentLeaderIndex = state.players.findIndex(p => p.id === state.currentLeader);
-      const nextLeaderIndex = (currentLeaderIndex + 1) % state.players.length;
+      const newVotes = { ...state.votes, [playerId]: vote };
       
+      // ถ้าทุกคนโหวตแล้ว
+      if (Object.keys(newVotes).length === state.players.length) {
+        const approvalCount = Object.values(newVotes).filter(v => v).length;
+        
+        if (approvalCount > state.players.length / 2) {
+          // ทีมผ่าน
+          return {
+            ...state,
+            phase: 'MISSION_EXECUTION',
+            votes: newVotes,
+            failedVotes: 0,
+            lastUpdate: now
+          };
+        } else {
+          // ทีมไม่ผ่าน
+          const newFailedVotes = state.failedVotes + 1;
+          if (newFailedVotes >= 5) {
+            // ถ้าโหวตไม่ผ่าน 5 ครั้งติด ฝ่ายอธรรมชนะ
+            return {
+              ...state,
+              phase: 'GAME_OVER',
+              winner: 'evil',
+              votes: newVotes,
+              lastUpdate: now
+            };
+          }
+
+          // เปลี่ยนผู้นำและเริ่มเลือกทีมใหม่
+          const currentLeaderIndex = state.players.findIndex(p => p.id === state.currentLeader);
+          const nextLeaderIndex = (currentLeaderIndex + 1) % state.players.length;
+          
+          return {
+            ...state,
+            phase: 'TEAM_SELECTION',
+            currentLeader: state.players[nextLeaderIndex].id,
+            selectedPlayers: [],
+            votes: newVotes,
+            failedVotes: newFailedVotes,
+            lastUpdate: now
+          };
+        }
+      }
+
       return {
         ...state,
-        phase: 'TEAM_SELECTION',
-        currentLeader: state.players[nextLeaderIndex].id,
-        selectedPlayers: [],
-        teamVotes: newTeamVotes,
-        failedVotes: newFailedVotes,
+        votes: newVotes,
         lastUpdate: now
       };
     }
 
     case 'EXECUTE_MISSION': {
-      console.log('Executing mission:', {
-        playerId: action.payload.playerId,
-        success: action.payload.success,
-        selectedPlayers: state.selectedPlayers,
-        isSelected: state.selectedPlayers.includes(action.payload.playerId),
-        currentVotes: state.votes
-      });
+      if (state.phase !== 'MISSION_EXECUTION') return state;
 
-      // ถ้าไม่ได้อยู่ในทีมที่ถูกเลือก หรือโหวตไปแล้ว ไม่ต้องทำอะไร
-      if (!state.selectedPlayers.includes(action.payload.playerId) || state.votes[action.payload.playerId] !== undefined) {
-        return state;
-      }
+      const { playerId, success } = action.payload;
+      if (!state.selectedPlayers.includes(playerId)) return state;
+      
+      // ถ้าผู้เล่นคนนี้โหวตไปแล้ว ไม่ให้โหวตซ้ำ
+      if (state.votes[playerId] !== undefined) return state;
 
-      // เพิ่มผลโหวต
-      const newVotes = {
-        ...state.votes,
-        [action.payload.playerId]: action.payload.success
-      };
-
-      // ตรวจสอบว่าทุกคนโหวตครบหรือยัง
-      const votedPlayers = state.selectedPlayers.filter(id => newVotes[id] !== undefined);
-      if (votedPlayers.length === state.selectedPlayers.length) {
-        // นับจำนวน fail
-        const failCount = Object.values(newVotes).filter(v => !v).length;
-        const failsRequired = getFailsRequired(state.players.length, state.currentMission);
-
-        // เพิ่มผลลัพธ์ภารกิจ
-        const newMissionResults = [...state.missionResults, failCount >= failsRequired];
-
-        // ตรวจสอบว่าจบเกมหรือยัง
-        const successCount = newMissionResults.filter(r => r).length;
-        const failureCount = newMissionResults.filter(r => !r).length;
-
-        if (successCount >= 3) {
-          return {
-            ...state,
-            phase: 'ASSASSINATION',
-            votes: newVotes,
-            missionResults: newMissionResults
-          };
-        } else if (failureCount >= 3) {
-          return {
-            ...state,
-            phase: 'GAME_OVER',
-            winner: 'evil',
-            votes: newVotes,
-            missionResults: newMissionResults
-          };
-        }
-
-        // ถ้ายังไม่จบ เริ่มภารกิจใหม่
+      // เก็บผลการโหวตของผู้เล่นในรอบนี้
+      const newVotes = { ...state.votes, [playerId]: success };
+      
+      // ถ้ายังไม่ครบทุกคนในทีม ให้รอ
+      if (Object.keys(newVotes).filter(id => state.selectedPlayers.includes(id)).length < state.selectedPlayers.length) {
         return {
           ...state,
-          phase: 'TEAM_SELECTION',
-          currentMission: state.currentMission + 1,
           votes: newVotes,
-          missionResults: newMissionResults,
-          selectedPlayers: [],
-          teamVotes: {},
-          leader: (state.leader + 1) % state.players.length
+          lastUpdate: now
         };
       }
 
-      // ถ้ายังโหวตไม่ครบ อัพเดทแค่ votes
+      // นับจำนวนโหวตล้มเหลวในรอบนี้
+      const failCount = Object.values(newVotes).filter(v => !v).length;
+      const failsRequired = getFailsRequired(state.players.length, state.currentMission);
+      
+      // เก็บผลภารกิจ
+      const missionResults = [...state.missionResults];
+      const missionSuccess = failCount < failsRequired;
+      missionResults.push(missionSuccess);
+
+      // ตรวจสอบผลการเล่น
+      const successCount = missionResults.filter(r => r).length;
+      const failedCount = missionResults.filter(r => !r).length;
+
+      if (successCount >= 3) {
+        // ฝ่ายธรรมะชนะ แต่ต้องรอการลอบสังหาร
+        return {
+          ...state,
+          missionResults,
+          phase: 'ASSASSINATION',
+          lastUpdate: now
+        };
+      } else if (failedCount >= 3) {
+        // ฝ่ายอธรรมชนะ
+        return {
+          ...state,
+          missionResults,
+          phase: 'GAME_OVER',
+          winner: 'evil',
+          lastUpdate: now
+        };
+      }
+
+      // เปลี่ยนผู้นำและเริ่มภารกิจใหม่
+      const currentLeaderIndex = state.players.findIndex(p => p.id === state.currentLeader);
+      const nextLeaderIndex = (currentLeaderIndex + 1) % state.players.length;
+      
       return {
         ...state,
-        votes: newVotes
+        missionResults,
+        phase: 'TEAM_SELECTION',
+        currentMission: state.currentMission + 1,
+        selectedPlayers: [],
+        teamVotes: {},
+        votes: {},
+        currentLeader: state.players[nextLeaderIndex].id,
+        lastUpdate: now
       };
     }
 
@@ -346,7 +406,7 @@ export function isPlayerTurn(state: GameState, playerId: string): boolean {
     case 'TEAM_SELECTION':
       return state.currentLeader === playerId;
     case 'TEAM_VOTING':
-      return !state.teamVotes[playerId];
+      return !state.votes[playerId];
     case 'MISSION_EXECUTION':
       return state.selectedPlayers.includes(playerId);
     case 'ASSASSINATION':
@@ -363,7 +423,7 @@ export function getGameStatus(state: GameState): string {
     case 'TEAM_SELECTION':
       return `รอบที่ ${state.currentMission}: ${state.players.find(p => p.id === state.currentLeader)?.name} กำลังเลือกทีม`;
     case 'TEAM_VOTING':
-      return `รอบที่ ${state.currentMission}: กำลังโหวตทีม (${Object.keys(state.teamVotes).length}/${state.players.length})`;
+      return `รอบที่ ${state.currentMission}: กำลังโหวตทีม (${Object.keys(state.votes).length}/${state.players.length})`;
     case 'MISSION_EXECUTION':
       return `รอบที่ ${state.currentMission}: กำลังทำภารกิจ`;
     case 'ASSASSINATION':
@@ -373,6 +433,14 @@ export function getGameStatus(state: GameState): string {
     default:
       return 'กำลังโหลด...';
   }
+}
+
+export const getMissionSize = (playerCount: number, missionNumber: number): number => {
+  return MISSION_SIZES[playerCount][missionNumber - 1];
+}
+
+export const getFailsRequired = (playerCount: number, missionNumber: number): number => {
+  return missionNumber === 4 && playerCount >= 7 ? 2 : 1;
 }
 
 export function canSeeRole(viewer: Player, target: Player): boolean {
@@ -390,12 +458,4 @@ export function canSeeRole(viewer: Player, target: Player): boolean {
     default:
       return false;
   }
-}
-
-export function getMissionSize(playerCount: number, missionNumber: number): number {
-  return MISSION_SIZES[playerCount][missionNumber - 1];
-}
-
-export function getFailsRequired(playerCount: number, missionNumber: number): number {
-  return missionNumber === 4 && playerCount >= 7 ? 2 : 1;
 }
